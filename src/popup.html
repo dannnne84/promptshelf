@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>PromptShelf</title>
+<link rel="stylesheet" href="vendor/highlight-theme.css">
+<style>
+  *{box-sizing:border-box}
+  body{
+    width:440px;max-height:600px;margin:0;overflow-y:auto;
+    background:#0b0f19;color:#e5e7eb;
+    font:14px/1.6 system-ui,-apple-system,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  ::-webkit-scrollbar{width:8px}
+  ::-webkit-scrollbar-thumb{background:#1c2333;border-radius:4px}
+
+  /* -------- header: the big, calm search bar is the whole point of
+     this redesign (2026-09-13) -- ChatGPT/Claude/Gemini all lead with
+     one large, obvious input and almost nothing else competing for
+     attention. Everything else here (title, trial line) stays small
+     and quiet so the search bar reads as the primary action. -------- */
+  header{padding:24px 24px 18px}
+  .header-top{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:16px}
+  h1{font-size:14px;margin:0;letter-spacing:.01em;font-weight:600;color:#9ca3af}
+  .trial{font-size:11.5px;color:#4b5563}
+  .trial.warn{color:#f59e0b}
+  .trial.expired{color:#f87171;font-weight:600}
+  .search-wrap{position:relative}
+  .search-wrap::before{
+    content:"";position:absolute;left:18px;top:50%;width:16px;height:16px;
+    transform:translateY(-50%);
+    background:#6b7280;
+    -webkit-mask:radial-gradient(circle 5px at 6px 6px,transparent 4px,#000 4.5px) 0 0/10px 10px no-repeat,
+      linear-gradient(45deg,transparent 9px,#000 9.5px) 0 0/16px 16px no-repeat;
+    mask:radial-gradient(circle 5px at 6px 6px,transparent 4px,#000 4.5px) 0 0/10px 10px no-repeat,
+      linear-gradient(45deg,transparent 9px,#000 9.5px) 0 0/16px 16px no-repeat;
+  }
+  #search{
+    width:100%;padding:14px 16px 14px 44px;
+    background:#141a29;border:1px solid #232b3d;border-radius:16px;
+    color:#f1f5f9;font-size:14.5px;transition:border-color .15s,background .15s;
+  }
+  #search::placeholder{color:#5b6472}
+  #search:focus{outline:none;border-color:#3b82f6;background:#161d2f}
+
+  #list{padding:6px 20px 20px}
+  .empty{padding:56px 24px;text-align:center;color:#6b7280;font-size:13px;line-height:1.8}
+
+  /* -------- items: reading rows, not boxed cards -------- a soft
+     background only on hover (like a list, not a grid of tiles) keeps
+     the read-space calm; the divider between rows does the separating
+     work instead of a border around every single one. */
+  .item{
+    padding:16px 12px;margin:0 -12px;border-radius:12px;
+    border-bottom:1px solid #161c2a;
+    transition:background .15s;
+  }
+  .item:last-child{border-bottom:none}
+  .item:hover{background:#111726}
+  .item-head{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+  .platform-dot{width:7px;height:7px;border-radius:50%;background:#60a5fa;flex-shrink:0}
+  .platform{
+    font-size:11.5px;letter-spacing:.02em;
+    color:#93c5fd;font-weight:600;
+  }
+  .when{font-size:11.5px;color:#4b5563;margin-left:auto;white-space:nowrap}
+  .content{
+    margin:0;color:#d1d5db;line-height:1.6;font-size:14px;
+    display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;
+  }
+
+  /* actions fade in on row hover -- present but out of the way, same
+     "calm by default" idea as the reference apps' understated icon
+     rows that only assert themselves when you're actually there */
+  .item-foot{
+    display:flex;justify-content:space-between;align-items:center;gap:8px;
+    margin-top:10px;min-height:24px;
+  }
+  .tags{color:#6b7280;font-size:12px;flex:1;min-width:0}
+  .tags input{
+    background:transparent;border:1px solid transparent;border-radius:6px;
+    color:#6b7280;font-size:12px;width:100%;max-width:160px;
+    padding:3px 7px;outline:none;transition:.15s;
+  }
+  .tags input:hover,.tags input:focus{background:#0d1220;border-color:#1e2536;color:#9ca3af}
+  .tags input:focus{border-color:#3b82f6;color:#e5e7eb}
+  .actions{display:flex;gap:4px;flex-shrink:0;opacity:0;transition:opacity .15s}
+  .item:hover .actions,.item:focus-within .actions{opacity:1}
+  .copy,.del{
+    cursor:pointer;font-size:12px;font-weight:600;border-radius:6px;
+    padding:5px 10px;border:1px solid transparent;transition:.15s;
+  }
+  .copy{color:#93c5fd;background:rgba(96,165,250,.1)}
+  .copy:hover{background:rgba(96,165,250,.2)}
+  .del{color:#6b7280;background:transparent}
+  .del:hover{color:#f87171;background:rgba(248,113,113,.1)}
+
+  #upgrade{
+    display:none;margin:4px 20px 16px;padding:14px 16px;
+    background:linear-gradient(180deg,#1e293b,#182131);border:1px solid #334155;border-radius:12px;
+    font-size:12.5px;color:#fbbf24;text-align:center;line-height:1.6;
+  }
+  #upgradeBtn{
+    display:block;width:100%;margin-top:10px;padding:9px;
+    background:#f59e0b;color:#1c1503;border:none;border-radius:8px;
+    font-size:12.5px;font-weight:700;cursor:pointer;
+  }
+  #upgradeBtn:hover{background:#fbbf24}
+
+  /* -------- tabs: Saved / Templates -------- */
+  .tabs{display:flex;gap:4px;padding:0 20px 10px}
+  .tab{
+    cursor:pointer;font-size:12.5px;font-weight:600;color:#6b7280;
+    padding:6px 12px;border-radius:8px;transition:.15s;
+  }
+  .tab:hover{color:#9ca3af}
+  .tab.active{color:#93c5fd;background:rgba(96,165,250,.1)}
+
+  /* -------- code rendering -------- */
+  .content pre{
+    margin:0;padding:10px 12px;border-radius:8px;background:#0a0e18!important;
+    overflow-x:auto;white-space:pre;font-size:12.5px;
+  }
+  .content code.hljs{padding:0;background:transparent}
+  .content.prose{white-space:normal}
+
+  /* -------- templates -------- */
+  #templatesPane{display:none}
+  .tpl-new{margin:0 20px 14px}
+  .tpl-new input,.tpl-new textarea{
+    width:100%;background:#141a29;border:1px solid #232b3d;border-radius:10px;
+    color:#f1f5f9;font-size:13px;padding:10px 12px;margin-bottom:8px;
+    font-family:inherit;resize:vertical;
+  }
+  .tpl-new textarea{min-height:70px}
+  .tpl-new input:focus,.tpl-new textarea:focus{outline:none;border-color:#3b82f6}
+  .tpl-hint{font-size:11px;color:#4b5563;margin:-4px 0 8px}
+  .btn-primary{
+    cursor:pointer;font-size:12.5px;font-weight:700;border:none;border-radius:8px;
+    padding:9px 14px;background:#3b82f6;color:#eff6ff;
+  }
+  .btn-primary:hover{background:#2563eb}
+  .tpl-item{padding:14px 12px;margin:0 -12px;border-bottom:1px solid #161c2a}
+  .tpl-item:last-child{border-bottom:none}
+  .tpl-title{font-size:13.5px;font-weight:600;color:#e5e7eb;margin-bottom:4px}
+  .tpl-body{font-size:12px;color:#6b7280;margin-bottom:8px;white-space:pre-wrap}
+  .tpl-actions{display:flex;gap:6px}
+  .use{
+    cursor:pointer;font-size:12px;font-weight:600;border-radius:6px;
+    padding:5px 10px;border:1px solid transparent;color:#93c5fd;background:rgba(96,165,250,.1);
+  }
+  .use:hover{background:rgba(96,165,250,.2)}
+
+  /* -------- fill-blanks overlay -------- */
+  #fillOverlay{
+    display:none;position:fixed;inset:0;background:rgba(5,7,12,.8);
+    align-items:center;justify-content:center;z-index:10;
+  }
+  #fillBox{
+    width:380px;max-height:460px;overflow-y:auto;background:#141a29;
+    border:1px solid #232b3d;border-radius:14px;padding:18px;
+  }
+  #fillBox h2{font-size:13.5px;margin:0 0 12px;color:#9ca3af}
+  #fillFields label{display:block;font-size:11.5px;color:#6b7280;margin-bottom:4px}
+  #fillFields input{
+    width:100%;background:#0d1220;border:1px solid #232b3d;border-radius:8px;
+    color:#f1f5f9;font-size:13px;padding:8px 10px;margin-bottom:10px;
+  }
+  #fillFields input:focus{outline:none;border-color:#3b82f6}
+  .fill-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:4px}
+  .btn-ghost{
+    cursor:pointer;font-size:12.5px;font-weight:600;border-radius:8px;
+    padding:9px 14px;border:1px solid #232b3d;background:transparent;color:#9ca3af;
+  }
+</style>
+</head>
+<body>
+  <header>
+    <div class="header-top">
+      <h1>PromptShelf</h1>
+      <div class="trial" id="trialLine">—</div>
+    </div>
+    <div class="search-wrap">
+      <input id="search" type="text" placeholder="Search your saved prompts...">
+    </div>
+  </header>
+  <div id="upgrade">
+    Trial expired — upgrade to keep saving new prompts. (Existing prompts stay browsable.)
+    <button id="upgradeBtn">Upgrade — €7/month</button>
+  </div>
+  <div class="tabs">
+    <div class="tab active" data-tab="saved">Saved</div>
+    <div class="tab" data-tab="templates">Templates</div>
+  </div>
+  <div id="savedPane">
+    <div id="list"></div>
+  </div>
+  <div id="templatesPane">
+    <div class="tpl-new">
+      <input id="tplTitle" type="text" placeholder="Template title, e.g. Explain this error">
+      <textarea id="tplBody" placeholder="e.g. Explain this {{language}} error and suggest a fix:&#10;{{error}}"></textarea>
+      <div class="tpl-hint">Use {{double curly braces}} for blanks you'll fill in each time.</div>
+      <button class="btn-primary" id="tplSaveBtn">Save template</button>
+    </div>
+    <div id="tplList"></div>
+  </div>
+  <div id="fillOverlay">
+    <div id="fillBox">
+      <h2 id="fillTitle"></h2>
+      <div id="fillFields"></div>
+      <div class="fill-actions">
+        <button class="btn-ghost" id="fillCancel">Cancel</button>
+        <button class="btn-primary" id="fillCopy">Fill &amp; copy</button>
+      </div>
+    </div>
+  </div>
+  <script src="vendor/highlight.min.js"></script>
+  <script src="storage.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>
